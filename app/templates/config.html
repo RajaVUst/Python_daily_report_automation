@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Configuration</h1>
+  <p class="muted">Read-only view of <code>{{ path }}</code>. Edit the file on the server; changes apply to the next run. Press Start to pick up a changed cron. Secrets live in <code>.env</code> and are not shown.</p>
+  <pre>{{ text }}</pre>
+</div>
+{% endblock %}

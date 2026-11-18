@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }}{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Back</a></p>
+<div class="card">
+  <h1>Run #{{ run.id }} <span class="pill {{ run.status }}">{{ run.status }}</span>
+    {% if data.summary %}<span class="pill {{ data.summary.overall|lower }}">{{ data.summary.overall }}</span>{% endif %}</h1>
+  <div class="grid">
+    <div class="kv"><b>Started</b>{{ run.started_at|local }}</div>
+    <div class="kv"><b>Finished</b>{{ run.finished_at|local or '-' }}</div>
+    <div class="kv"><b>Trigger</b>{{ run.trigger }}</div>
+    <div class="kv"><b>Email</b>{{ run.email_status or '-' }}</div>
+  </div>
+  {% if run.error %}<p class="pill fail" style="margin-top:12px">{{ run.error }}</p>{% endif %}
+  <div class="btns">
+    {% if run.report_path %}<a class="btn" href="/runs/{{ run.id }}/download/report">Download report (.xlsx)</a>{% endif %}
+    {% if run.data_path %}<a class="btn" href="/runs/{{ run.id }}/download/data">Download raw data (.xlsx)</a>{% endif %}
+  </div>
+</div>
+
+{% if data.checks %}
+<div class="card">
+  <h2>Checks</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Check</th><th>Expected</th><th>Actual</th><th>Diff</th><th>Status</th></tr>
+    {% for c in data.checks %}
+    <tr>
+      <td>{{ c.name }}{% if c.note %}<br><span class="muted">{{ c.note }}</span>{% endif %}</td>
+      <td>{{ c.expected }}</td><td>{{ c.actual }}</td><td>{{ c.difference }}</td>
+      <td><span class="pill {{ c.status|lower }}">{{ c.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endif %}
+
+{% if run.llm_summary %}
+<div class="card"><h2>Summary</h2><div style="white-space:pre-wrap">{{ run.llm_summary }}</div></div>
+
+<div class="card">
+  <h2>Ask about this run</h2>
+  <div id="log" style="margin-bottom:10px"></div>
+  <form onsubmit="send(event)" style="display:flex;gap:8px">
+    <input type="text" id="msg" placeholder="e.g. Why did Payments - row count fail?" maxlength="2000" autocomplete="off">
+    <button class="btn primary">Ask</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const history = [];
+function add(role, text){
+  const d=document.createElement('div'); d.style.cssText='margin:6px 0;white-space:pre-wrap';
+  d.innerHTML='<b>'+(role==='user'?'You':'Assistant')+':</b> '; d.appendChild(document.createTextNode(text));
+  document.getElementById('log').appendChild(d);
+}
+async function send(e){
+  e.preventDefault();
+  const i=document.getElementById('msg'), m=i.value.trim(); if(!m) return;
+  i.value=''; add('user', m);
+  const r = await fetch('/api/runs/{{ run.id }}/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:m, history})});
+  const j = await r.json().catch(()=>({answer:'Error'}));
+  const a = j.answer || j.detail || 'Error'; add('assistant', a);
+  history.push({role:'user',content:m},{role:'assistant',content:a});
+}
+</script>
+{% endblock %}

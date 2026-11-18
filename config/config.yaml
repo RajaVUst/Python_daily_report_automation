@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------
+# Business configuration. Secrets (passwords, API keys) live in .env, not here.
+# Edits apply to the next run; press Start in the portal to pick up a new cron.
+# ---------------------------------------------------------------
+timezone: Asia/Kolkata
+
+job:
+  name: daily_recon
+  cron: "0 7 * * *"          # minute hour day month weekday -> every day at 07:00
+
+# Where the data comes from. Read-only.
+source:
+  type: sqlite               # oracle | sqlite (sqlite = bundled demo data)
+  sqlite_path: data/demo_source.db
+  # For Oracle set type: oracle and put ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN in .env
+  max_rows: 1000000
+  query_timeout_seconds: 300
+
+# SELECT / WITH statements only. Omit the trailing semicolon for Oracle.
+queries:
+  - name: orders
+    sql: "SELECT order_id, customer, amount, order_date FROM orders"
+  - name: payments
+    sql: "SELECT payment_id, order_id, amount, paid_on FROM payments"
+
+# Reference values for comparison: optional .csv or .xlsx with columns
+# check, expected, [tolerance], [tolerance_pct]. A check's own `expected` wins.
+reference_file: config/reference.csv
+
+# metric: row_count | sum (sum needs `column`)
+checks:
+  - name: Orders - row count
+    query: orders
+    metric: row_count
+    expected: 6
+  - name: Orders - total amount
+    query: orders
+    metric: sum
+    column: amount            # expected value comes from reference_file
+  - name: Payments - row count
+    query: payments
+    metric: row_count         # expected from reference_file
+  - name: Payments - total amount
+    query: payments
+    metric: sum
+    column: amount
+    tolerance_pct: 1          # allow 1% difference
+
+llm:
+  enabled: true               # needs ANTHROPIC_API_KEY in .env; falls back to a plain summary if off
+  model: claude-sonnet-5-5
+  max_tokens: 1200
+
+email:
+  enabled: false              # set true once SMTP details below are filled in
+  smtp_host: smtp.example.com
+  smtp_port: 587
+  security: starttls          # starttls | ssl | none  (SMTP_USER / SMTP_PASSWORD from .env)
+  from: recon-bot@example.com
+  to: [ops-team@example.com]
+  cc: []
+  bcc: []
+  subject: "Daily reconciliation {date}: {status}"   # placeholders: {date} {status} {job} {passed} {failed} {errors} {total}
+  attach_raw_data: false      # also attach the raw query results workbook
+  send_on_failure: true       # email an alert if the run itself fails

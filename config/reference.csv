@@ -1,0 +1,4 @@
+check,expected,tolerance,tolerance_pct
+Orders - total amount,1250,,
+Payments - row count,6,,
+Payments - total amount,1000,,

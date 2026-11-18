@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Daily reconciliation job</h1>
+  <div class="grid">
+    <div class="kv"><b>Schedule</b><span id="enabled" class="pill {{ 'on' if st.enabled else 'off' }}">{{ 'Started' if st.enabled else 'Stopped' }}</span></div>
+    <div class="kv"><b>Cron ({{ st.timezone }})</b><span>{{ st.cron }}</span></div>
+    <div class="kv"><b>Next run</b><span id="next">{{ st.next_run or '-' }}</span></div>
+    <div class="kv"><b>Current state</b><span id="running" class="pill {{ 'running' if st.running else 'off' }}">{{ 'Running' if st.running else 'Idle' }}</span></div>
+  </div>
+  <div class="btns">
+    <button class="btn primary" onclick="act('start')">Start</button>
+    <button class="btn" onclick="act('stop')">Stop</button>
+    <button class="btn danger" onclick="if(confirm('Kill the running job now?'))act('kill')">Kill</button>
+    <button class="btn" onclick="act('run')">Run now</button>
+  </div>
+  <p class="muted" style="margin:10px 0 0;font-size:13px">Start enables the schedule. Stop disables it (a run in progress finishes). Kill terminates the run in progress.</p>
+</div>
+
+<div class="card">
+  <h2>Recent runs</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th>#</th><th>Started</th><th>Trigger</th><th>Status</th><th>Result</th><th>Email</th></tr>
+    {% for r in runs %}
+    <tr>
+      <td><a href="/runs/{{ r.id }}">{{ r.id }}</a></td>
+      <td>{{ r.started_at|local }}</td>
+      <td>{{ r.trigger }}</td>
+      <td><span class="pill {{ r.status }}">{{ r.status }}</span></td>
+      <td>{% if r.results_json %}{{ (r.results_json|fromjson).summary.overall }}{% else %}-{% endif %}</td>
+      <td class="muted">{{ (r.email_status or '-')[:40] }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No runs yet. Press "Run now" to try one.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let last = {running: {{ 'true' if st.running else 'false' }}, id: {{ st.last_run_id or 'null' }}, status: "{{ st.last_run_status or '' }}"};
+async function act(a){
+  const r = await fetch('/api/job/'+a, {method:'POST'});
+  const j = await r.json().catch(()=>({message:'Error'}));
+  toast(j.message || 'Done');
+  setTimeout(refresh, 600);
+}
+async function refresh(){
+  const r = await fetch('/api/job/status'); if(r.status===401){location='/login';return}
+  const s = await r.json();
+  const en=document.getElementById('enabled'); en.textContent=s.enabled?'Started':'Stopped'; en.className='pill '+(s.enabled?'on':'off');
+  const ru=document.getElementById('running'); ru.textContent=s.running?'Running':'Idle'; ru.className='pill '+(s.running?'running':'off');
+  document.getElementById('next').textContent=s.next_run||'-';
+  if(s.running!==last.running || s.last_run_id!==last.id || s.last_run_status!==last.status){ location.reload(); }
+}
+setInterval(refresh, 4000);
+</script>
+{% endblock %}
